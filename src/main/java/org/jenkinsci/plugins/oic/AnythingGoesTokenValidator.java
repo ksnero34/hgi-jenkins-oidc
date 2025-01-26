@@ -62,8 +62,9 @@ public class AnythingGoesTokenValidator extends TokenValidator {
         config.setSecret("ignored");
         OidcOpMetadataResolver opMetadataResolver = new StaticOidcOpMetadataResolver(config, metadata);
         config.setOpMetadataResolver(opMetadataResolver);
-        config.setPreferredJwsAlgorithm(JWSAlgorithm.HS256);
+        config.setPreferredJwsAlgorithm(JWSAlgorithm.RS256);
         config.setClientAuthenticationMethod(ClientAuthenticationMethod.CLIENT_SECRET_BASIC);
+        config.setJwksUrl(metadata.getJwksURI());
         return config;
     }
 
@@ -71,7 +72,7 @@ public class AnythingGoesTokenValidator extends TokenValidator {
         try {
             OIDCProviderMetadata providerMetadata = new OIDCProviderMetadata(
                     new Issuer("http://ignored"), List.of(SubjectType.PUBLIC), new URI("http://ignored.and.invalid./"));
-            providerMetadata.setIDTokenJWSAlgs(List.of(JWSAlgorithm.HS256));
+            providerMetadata.setIDTokenJWSAlgs(List.of(JWSAlgorithm.RS256));
             return providerMetadata;
         } catch (URISyntaxException e) {
             // should never happen the urls we are using are valid
