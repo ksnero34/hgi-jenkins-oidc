@@ -64,7 +64,6 @@ public class AnythingGoesTokenValidator extends TokenValidator {
         config.setOpMetadataResolver(opMetadataResolver);
         config.setPreferredJwsAlgorithm(JWSAlgorithm.RS256);
         config.setClientAuthenticationMethod(ClientAuthenticationMethod.CLIENT_SECRET_BASIC);
-        config.setJwksUrl(metadata.getJwksURI());
         return config;
     }
 
