@@ -1684,4 +1684,81 @@ public class OicSecurityRealm extends SecurityRealm implements Serializable {
             return new IdStrategy.CaseSensitive();
         }
     }
+
+    @RequirePOST
+    public void doBackChannelLogout(StaplerRequest2 req, StaplerResponse2 rsp) throws IOException, ServletException {
+        // 로그아웃 토큰 추출
+        String logoutToken = req.getParameter("logout_token");
+        if (logoutToken == null) {
+            rsp.sendError(HttpServletResponse.SC_BAD_REQUEST, "logout_token is required");
+            return;
+        }
+
+        try {
+            // 로그아웃 토큰 파싱
+            JWT jwt = JWTParser.parse(logoutToken);
+
+            // 토큰 검증
+            if (!isDisableTokenVerification()) {
+                validateLogoutToken(jwt);
+            }
+
+            // 사용자 세션 종료
+            String subject = jwt.getJWTClaimsSet().getSubject();
+            if (subject != null) {
+                terminateUserSessions(subject);
+            }
+
+            rsp.setStatus(HttpServletResponse.SC_OK);
+        } catch (ParseException e) {
+            LOGGER.log(Level.WARNING, "Invalid logout token", e);
+            rsp.sendError(HttpServletResponse.SC_BAD_REQUEST, "Invalid logout token");
+        }
+    }
+
+    private void validateLogoutToken(JWT jwt) throws ParseException {
+        // 토큰 클레임 검증
+        Map<String, Object> claims = jwt.getJWTClaimsSet().getClaims();
+
+        // 필수 클레임 확인
+        String[] requiredClaims = {"iss", "sub", "aud", "iat", "jti"};
+        for (String claim : requiredClaims) {
+            if (!claims.containsKey(claim)) {
+                throw new ParseException("Missing required claim: " + claim, 0);
+            }
+        }
+
+        // 만료 시간 확인
+        long currentTime = System.currentTimeMillis() / 1000L;
+        long iat = jwt.getJWTClaimsSet().getLongClaim("iat");
+        if (currentTime - iat > 600) { // 10분 이상 지난 토큰은 거부
+            throw new ParseException("Token too old", 0);
+        }
+
+        // 발급자 확인
+        String tokenIssuer = jwt.getJWTClaimsSet().getIssuer();
+        if (!tokenIssuer.equals(
+                serverConfiguration.toProviderMetadata().getIssuer().getValue())) {
+            throw new ParseException("Invalid issuer", 0);
+        }
+    }
+
+    private void terminateUserSessions(String subject) throws IOException, ServletException {
+        // 사용자 조회 (Authentication 객체를 통해)
+        Authentication auth = new UsernamePasswordAuthenticationToken(subject, "");
+        User user = User.get2(auth);
+        if (user != null) {
+            // OIC 자격 증명 제거
+            OicCredentials credentials = user.getProperty(OicCredentials.class);
+            if (credentials != null) {
+                user.addProperty(new OicCredentials(null, null, null, CLOCK.millis()));
+            }
+
+            // SecurityListener를 통한 로그아웃 처리
+            SecurityListener.fireLoggedOut(user.getId());
+
+            // SecurityContext 초기화
+            SecurityContextHolder.clearContext();
+        }
+    }
 }
