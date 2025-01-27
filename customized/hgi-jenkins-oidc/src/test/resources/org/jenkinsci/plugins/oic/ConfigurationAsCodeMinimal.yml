@@ -1,0 +1,10 @@
+jenkins:
+  securityRealm:
+    oic:
+      serverConfiguration:
+        manual:
+          issuer: http://localhost/
+          authorizationServerUrl: http://localhost/authorize
+          tokenServerUrl: http://localhost/token
+      clientId: clientId
+      clientSecret: clientSecret

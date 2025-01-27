@@ -1,0 +1,22 @@
+clientId: "clientId"
+disableSslVerification: true
+emailFieldName: "emailFieldName"
+escapeHatchEnabled: true
+escapeHatchGroup: "escapeHatchGroup"
+escapeHatchUsername: "escapeHatchUsername"
+fullNameFieldName: "fullNameFieldName"
+groupIdStrategy: "caseInsensitive"
+groupsFieldName: "groupsFieldName"
+nonceDisabled: true
+pkceEnabled: true
+rootURLFromRequest: true
+sendScopesInTokenRequest: true
+serverConfiguration:
+  manual:
+    authorizationServerUrl: "http://localhost/authorize"
+    issuer: "http://localhost/"
+    jwksServerUrl: "http://localhost/jwks"
+    scopes: "scopes"
+    tokenServerUrl: "http://localhost/token"
+userIdStrategy: "caseInsensitive"
+userNameField: "userNameField"

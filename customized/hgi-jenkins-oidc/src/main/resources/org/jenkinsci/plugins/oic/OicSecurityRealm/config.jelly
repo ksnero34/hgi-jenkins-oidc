@@ -1,0 +1,96 @@
+<?jelly escape-by-default='true'?>
+<j:jelly xmlns:j="jelly:core" xmlns:st="jelly:stapler" xmlns:d="jelly:define" xmlns:l="/lib/layout" xmlns:t="/lib/hudson" xmlns:f="/lib/form" xmlns:i="jelly:fmt" xmlns:p="/lib/hudson/project">
+  <f:entry title="${%ClientId}" field="clientId">
+    <f:textbox/>
+  </f:entry>
+  <f:entry title="${%ClientSecret}" field="clientSecret">
+    <f:password/>
+  </f:entry>
+
+  <st:adjunct includes="org.jenkinsci.plugins.oic.OicSecurityRealm.logout-idp-toggle" />
+
+  <f:dropdownDescriptorSelector field="serverConfiguration" title="${%ConfigurationMode}" default="${descriptor.defaultServerConfigurationType}"/>
+
+  <f:section title="${%AdvancedConfiguration}">
+    <f:advanced title="${%UserFields}">
+      <f:entry title="${%UsernameFieldName}" field="userNameField">
+        <f:textbox/>
+      </f:entry>
+      <f:entry>
+        <f:dropdownDescriptorSelector title="${%UsernameIdStrategy}" field="userIdStrategy" default="${descriptor.defaultUsernameIdStrategy()}" descriptors="${descriptor.idStrategyDescriptors}"/>
+      </f:entry>
+      <f:entry title="${%FullnameFieldName}" field="fullNameFieldName">
+        <f:textbox/>
+      </f:entry>
+      <f:entry title="${%EmailFieldName}" field="emailFieldName">
+        <f:textbox/>
+      </f:entry>
+      <f:entry title="${%GroupsFieldName}" field="groupsFieldName">
+        <f:textbox/>
+      </f:entry>
+      <f:entry>
+        <f:dropdownDescriptorSelector title="${%GroupIdStrategy}" field="groupIdStrategy" default="${descriptor.defaultGroupIdStrategy()}" descriptors="${descriptor.idStrategyDescriptors}"/>
+      </f:entry>
+    </f:advanced>
+    <f:entry title="${%LogoutFromOpenIDProvider}" field="logoutFromOpenidProvider">
+      <f:checkbox id="logoutFromIDP"/>
+    </f:entry>
+    <f:entry title="${%SendScopesInTokenRequest}" field="sendScopesInTokenRequest">
+      <f:checkbox/>
+    </f:entry>
+    <f:entry title="${%PostLogoutRedirectUrl}" field="postLogoutRedirectUrl" class="endSessionConfig">
+      <f:textbox />
+    </f:entry>
+
+    <f:advanced title="${%SecurityConfiguration}">
+      <f:entry title="${%TokenFieldKeyToCheck}" field="tokenFieldToCheckKey">
+        <f:textbox/>
+      </f:entry>
+      <f:entry title="${%TokenFieldValueToCheck}" field="tokenFieldToCheckValue">
+        <f:textbox/>
+      </f:entry>
+      <f:entry title="${%DisableSslVerification}" field="disableSslVerification">
+        <f:checkbox/>
+      </f:entry>
+      <f:entry title="${%UseRootUrlFromRequest}" field="rootURLFromRequest">
+        <f:checkbox/>
+      </f:entry>
+      <f:entry title="${%EnablePKCE}" field="pkceEnabled">
+        <f:checkbox/>
+      </f:entry>
+      <f:entry title="${%DisableNonceVerification}" field="nonceDisabled">
+        <f:checkbox/>
+      </f:entry>
+      <f:entry title="${%DisableTokenVerification}" field="disableTokenVerification">
+        <f:checkbox/>
+      </f:entry>
+      <f:entry title="${%DisableTokenExpirationCheck}" field="tokenExpirationCheckDisabled">
+        <f:checkbox/>
+      </f:entry>
+      <f:entry title="${%AllowedTokenExpirationClockSkewSeconds}" field="allowedTokenExpirationClockSkewSeconds">
+        <f:textbox/>
+      </f:entry>
+      <f:entry title="${%AllowTokenAccessWithoutOicSession}" field="allowTokenAccessWithoutOicSession">
+        <f:checkbox/>
+      </f:entry>
+    </f:advanced>
+    <j:if test="${!descriptor.isFipsEnabled()}">
+      <f:block>
+        <table>
+          <f:optionalBlock inline="true" title="${%ConfigureEscapeHatch}" field="escapeHatchEnabled">
+            <f:entry title="${%Username}" field="escapeHatchUsername">
+              <f:textbox/>
+            </f:entry>
+            <f:entry title="${%Secret}" field="escapeHatchSecret">
+              <f:password/>
+            </f:entry>
+            <f:entry title="${%Group}" field="escapeHatchGroup">
+              <f:textbox/>
+            </f:entry>
+          </f:optionalBlock>
+        </table>
+      </f:block>
+    </j:if>
+
+  </f:section>
+</j:jelly>
