@@ -47,7 +47,7 @@ import hudson.model.Descriptor;
 import hudson.model.Descriptor.FormException;
 import hudson.model.Failure;
 import hudson.model.User;
-import hudson.security.ChainedServletFilter2;
+import hudson.security.ChainedServletFilter;
 import hudson.security.SecurityRealm;
 import hudson.tasks.Mailer;
 import hudson.util.FormValidation;
@@ -56,15 +56,6 @@ import io.burt.jmespath.Expression;
 import io.burt.jmespath.JmesPath;
 import io.burt.jmespath.RuntimeConfiguration;
 import io.burt.jmespath.jcf.JcfRuntime;
-import jakarta.servlet.Filter;
-import jakarta.servlet.FilterChain;
-import jakarta.servlet.FilterConfig;
-import jakarta.servlet.ServletException;
-import jakarta.servlet.ServletRequest;
-import jakarta.servlet.ServletResponse;
-import jakarta.servlet.http.HttpServletRequest;
-import jakarta.servlet.http.HttpServletResponse;
-import jakarta.servlet.http.HttpSession;
 import java.io.IOException;
 import java.io.InvalidObjectException;
 import java.io.ObjectStreamException;
@@ -89,6 +80,15 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 import java.util.regex.Pattern;
 import javax.annotation.PostConstruct;
+import javax.servlet.Filter;
+import javax.servlet.FilterChain;
+import javax.servlet.FilterConfig;
+import javax.servlet.ServletException;
+import javax.servlet.ServletRequest;
+import javax.servlet.ServletResponse;
+import javax.servlet.http.HttpServletRequest;
+import javax.servlet.http.HttpServletResponse;
+import javax.servlet.http.HttpSession;
 import jenkins.model.IdStrategy;
 import jenkins.model.IdStrategyDescriptor;
 import jenkins.model.Jenkins;
@@ -105,11 +105,9 @@ import org.kohsuke.stapler.DataBoundSetter;
 import org.kohsuke.stapler.Header;
 import org.kohsuke.stapler.QueryParameter;
 import org.kohsuke.stapler.Stapler;
-import org.kohsuke.stapler.StaplerRequest2;
-import org.kohsuke.stapler.StaplerResponse2;
+import org.kohsuke.stapler.StaplerRequest;
+import org.kohsuke.stapler.StaplerResponse;
 import org.kohsuke.stapler.interceptor.RequirePOST;
-import org.pac4j.core.context.CallContext;
-import org.pac4j.core.context.FrameworkParameters;
 import org.pac4j.core.context.WebContext;
 import org.pac4j.core.context.session.SessionStore;
 import org.pac4j.core.credentials.Credentials;
@@ -119,16 +117,12 @@ import org.pac4j.core.exception.http.RedirectionAction;
 import org.pac4j.core.http.callback.NoParameterCallbackUrlResolver;
 import org.pac4j.core.profile.creator.ProfileCreator;
 import org.pac4j.jee.context.JEEContextFactory;
-import org.pac4j.jee.context.JEEFrameworkParameters;
 import org.pac4j.jee.context.session.JEESessionStoreFactory;
 import org.pac4j.jee.http.adapter.JEEHttpActionAdapter;
 import org.pac4j.oidc.client.OidcClient;
 import org.pac4j.oidc.config.OidcConfiguration;
 import org.pac4j.oidc.credentials.authenticator.OidcAuthenticator;
-import org.pac4j.oidc.metadata.OidcOpMetadataResolver;
-import org.pac4j.oidc.metadata.StaticOidcOpMetadataResolver;
 import org.pac4j.oidc.profile.OidcProfile;
-import org.pac4j.oidc.profile.creator.TokenValidator;
 import org.pac4j.oidc.redirect.OidcRedirectionActionBuilder;
 import org.springframework.security.authentication.AnonymousAuthenticationToken;
 import org.springframework.security.authentication.AuthenticationManager;
@@ -557,19 +551,11 @@ public class OicSecurityRealm extends SecurityRealm implements Serializable {
 
         OIDCProviderMetadata oidcProviderMetadata = serverConfiguration.toProviderMetadata();
         filterNonFIPS140CompliantAlgorithms(oidcProviderMetadata);
-        OidcOpMetadataResolver opMetadataResolver;
         if (this.isDisableTokenVerification()) {
             conf.setAllowUnsignedIdTokens(true);
-            opMetadataResolver = new StaticOidcOpMetadataResolver(conf, oidcProviderMetadata) {
-                @Override
-                protected TokenValidator createTokenValidator() {
-                    return new AnythingGoesTokenValidator();
-                }
-            };
-        } else {
-            opMetadataResolver = new StaticOidcOpMetadataResolver(conf, oidcProviderMetadata);
+            conf.setTokenValidator(new AnythingGoesTokenValidator());
         }
-        conf.setOpMetadataResolver(opMetadataResolver);
+        conf.setProviderMetadata(oidcProviderMetadata);
         if (oidcProviderMetadata.getScopes() != null) {
             // auto configuration does not need to supply scopes
             conf.setScope(oidcProviderMetadata.getScopes().toString());
@@ -581,10 +567,7 @@ public class OicSecurityRealm extends SecurityRealm implements Serializable {
         conf.setResourceRetriever(getResourceRetriever());
         if (this.isPkceEnabled()) {
             conf.setPkceMethod(CodeChallengeMethod.S256);
-        } else {
-            conf.setDisablePkce(true);
         }
-        opMetadataResolver.init();
         return conf;
     }
 
@@ -795,7 +778,7 @@ public class OicSecurityRealm extends SecurityRealm implements Serializable {
     @DataBoundSetter
     public void setGroupsFieldName(String groupsFieldName) {
         this.groupsFieldName = Util.fixEmptyAndTrim(groupsFieldName);
-        this.groupsFieldExpr = this.compileJMESPath(this.groupsFieldName, "groups field");
+        this.groupsFieldExpr = this.compileJMESPath(groupsFieldName, "groups field");
     }
 
     @DataBoundSetter
@@ -904,7 +887,7 @@ public class OicSecurityRealm extends SecurityRealm implements Serializable {
 
     @Override
     public Filter createFilter(FilterConfig filterConfig) {
-        return new ChainedServletFilter2(super.createFilter(filterConfig), new Filter() {
+        return new ChainedServletFilter(super.createFilter(filterConfig), new Filter() {
             @Override
             public void doFilter(ServletRequest request, ServletResponse response, FilterChain chain)
                     throws IOException, ServletException {
@@ -998,12 +981,11 @@ public class OicSecurityRealm extends SecurityRealm implements Serializable {
         final String redirectOnFinish = getValidRedirectUrl(from != null ? from : referer);
 
         OidcRedirectionActionBuilder builder = new OidcRedirectionActionBuilder(client);
-        FrameworkParameters parameters =
-                new JEEFrameworkParameters(Stapler.getCurrentRequest2(), Stapler.getCurrentResponse2());
-        WebContext webContext = JEEContextFactory.INSTANCE.newContext(parameters);
-        SessionStore sessionStore = JEESessionStoreFactory.INSTANCE.newSessionStore(parameters);
-        CallContext ctx = new CallContext(webContext, sessionStore);
-        RedirectionAction redirectionAction = builder.getRedirectionAction(ctx).orElseThrow();
+        WebContext webContext =
+                JEEContextFactory.INSTANCE.newContext(Stapler.getCurrentRequest(), Stapler.getCurrentResponse());
+        SessionStore sessionStore = JEESessionStoreFactory.INSTANCE.newSessionStore();
+        RedirectionAction redirectionAction =
+                builder.getRedirectionAction(webContext, sessionStore).orElseThrow();
 
         // store the redirect url for after the login.
         sessionStore.set(webContext, SESSION_POST_LOGIN_REDIRECT_URL_KEY, redirectOnFinish);
@@ -1201,7 +1183,7 @@ public class OicSecurityRealm extends SecurityRealm implements Serializable {
     }
 
     @Restricted(DoNotUse.class) // stapler only
-    public void doLogout(StaplerRequest2 req, StaplerResponse2 rsp) throws IOException, ServletException {
+    public void doLogout(StaplerRequest req, StaplerResponse rsp) throws IOException, ServletException {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
         User user = User.get2(authentication);
 
@@ -1224,7 +1206,7 @@ public class OicSecurityRealm extends SecurityRealm implements Serializable {
     }
 
     @Override
-    public String getPostLogOutUrl2(StaplerRequest2 req, Authentication auth) {
+    public String getPostLogOutUrl2(StaplerRequest req, Authentication auth) {
         Object idToken = req.getAttribute(ID_TOKEN_REQUEST_ATTRIBUTE);
         Object state = getStateAttribute(req.getSession());
         var openidLogoutEndpoint = maybeOpenIdLogoutEndpoint(
@@ -1239,14 +1221,12 @@ public class OicSecurityRealm extends SecurityRealm implements Serializable {
     Object getStateAttribute(HttpSession session) {
         // return null;
         OidcClient client = buildOidcClient();
-        FrameworkParameters parameters =
-                new JEEFrameworkParameters(Stapler.getCurrentRequest2(), Stapler.getCurrentResponse2());
-        WebContext webContext = JEEContextFactory.INSTANCE.newContext(parameters);
-        SessionStore sessionStore = JEESessionStoreFactory.INSTANCE.newSessionStore(parameters);
-        CallContext ctx = new CallContext(webContext, sessionStore);
+        WebContext webContext =
+                JEEContextFactory.INSTANCE.newContext(Stapler.getCurrentRequest(), Stapler.getCurrentResponse());
+        SessionStore sessionStore = JEESessionStoreFactory.INSTANCE.newSessionStore();
         return client.getConfiguration()
                 .getValueRetriever()
-                .retrieve(ctx, client.getStateSessionAttributeName(), client)
+                .retrieve(client.getStateSessionAttributeName(), client, webContext, sessionStore)
                 .orElse(null);
     }
 
@@ -1273,7 +1253,7 @@ public class OicSecurityRealm extends SecurityRealm implements Serializable {
         return null;
     }
 
-    private String getFinalLogoutUrl(StaplerRequest2 req, Authentication auth) {
+    private String getFinalLogoutUrl(StaplerRequest req, Authentication auth) {
         if (Jenkins.get().hasPermission(Jenkins.READ)) {
             return super.getPostLogOutUrl2(req, auth);
         }
@@ -1310,12 +1290,11 @@ public class OicSecurityRealm extends SecurityRealm implements Serializable {
      * @param request The user's request
      * @throws ParseException if the JWT (or other response) could not be parsed.
      */
-    public void doFinishLogin(StaplerRequest2 request, StaplerResponse2 response) throws IOException, ParseException {
+    public void doFinishLogin(StaplerRequest request, StaplerResponse response) throws IOException, ParseException {
         OidcClient client = buildOidcClient();
 
-        FrameworkParameters parameters = new JEEFrameworkParameters(request, response);
-        WebContext webContext = JEEContextFactory.INSTANCE.newContext(parameters);
-        SessionStore sessionStore = JEESessionStoreFactory.INSTANCE.newSessionStore(parameters);
+        WebContext webContext = JEEContextFactory.INSTANCE.newContext(request, response);
+        SessionStore sessionStore = JEESessionStoreFactory.INSTANCE.newSessionStore();
 
         try {
             // NB: TODO this also handles back channel logout if "logoutendpoint" parameter is set
@@ -1328,17 +1307,14 @@ public class OicSecurityRealm extends SecurityRealm implements Serializable {
                 throw new TechnicalException("Could not create a new session");
             }
 
-            CallContext ctx = new CallContext(webContext, sessionStore);
-            Credentials credentials = client.getCredentials(ctx)
+            Credentials credentials = client.getCredentials(webContext, sessionStore)
                     .orElseThrow(() -> new Failure("Could not extract credentials from request"));
-            credentials = client.validateCredentials(ctx, credentials)
-                    .orElseThrow(() -> new Failure("Could not validate credentials from request"));
 
             ProfileCreator profileCreator = client.getProfileCreator();
 
             // creating the profile performs validation of the token
             OidcProfile profile = (OidcProfile) profileCreator
-                    .create(ctx, credentials)
+                    .create(credentials, webContext, sessionStore)
                     .orElseThrow(() -> new Failure("Could not build user profile"));
 
             AccessToken accessToken = profile.getAccessToken();
@@ -1457,9 +1433,8 @@ public class OicSecurityRealm extends SecurityRealm implements Serializable {
             HttpServletResponse httpResponse)
             throws IOException {
 
-        FrameworkParameters parameters = new JEEFrameworkParameters(httpRequest, httpResponse);
-        WebContext webContext = JEEContextFactory.INSTANCE.newContext(parameters);
-        SessionStore sessionStore = JEESessionStoreFactory.INSTANCE.newSessionStore(parameters);
+        WebContext webContext = JEEContextFactory.INSTANCE.newContext(httpRequest, httpResponse);
+        SessionStore sessionStore = JEESessionStoreFactory.INSTANCE.newSessionStore();
         OidcClient client = buildOidcClient();
         // PAC4J maintains the nonce even though servers should not respond with an id token containing the nonce
         // https://openid.net/specs/openid-connect-core-1_0.html#RefreshTokenResponse
@@ -1475,8 +1450,7 @@ public class OicSecurityRealm extends SecurityRealm implements Serializable {
             profile.setIdTokenString(credentials.getIdToken());
             profile.setRefreshToken(new RefreshToken(credentials.getRefreshToken()));
 
-            CallContext ctx = new CallContext(webContext, sessionStore);
-            profile = (OidcProfile) client.renewUserProfile(ctx, profile)
+            profile = (OidcProfile) client.renewUserProfile(profile, webContext, sessionStore)
                     .orElseThrow(() -> new IllegalStateException("Could not renew user profile"));
 
             // During refresh the IDToken may or may not be present.

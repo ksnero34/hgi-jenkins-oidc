@@ -9,13 +9,11 @@ import java.io.IOException;
 import java.io.ObjectStreamException;
 import java.text.ParseException;
 import jenkins.model.IdStrategy;
-import org.kohsuke.stapler.StaplerRequest2;
-import org.kohsuke.stapler.StaplerResponse2;
-import org.pac4j.core.context.FrameworkParameters;
+import org.kohsuke.stapler.StaplerRequest;
+import org.kohsuke.stapler.StaplerResponse;
 import org.pac4j.core.context.WebContext;
 import org.pac4j.core.context.session.SessionStore;
 import org.pac4j.jee.context.JEEContextFactory;
-import org.pac4j.jee.context.JEEFrameworkParameters;
 import org.pac4j.jee.context.session.JEESessionStoreFactory;
 import org.pac4j.oidc.client.OidcClient;
 
@@ -276,15 +274,14 @@ public class TestRealm extends OicSecurityRealm {
     }
 
     @Override
-    public void doFinishLogin(StaplerRequest2 request, StaplerResponse2 response) throws IOException, ParseException {
+    public void doFinishLogin(StaplerRequest request, StaplerResponse response) throws IOException, ParseException {
         /*
          * PluginTest uses a hardCoded nonce "nonce"
          */
         if (!isNonceDisabled()) {
             // only hack the nonce if the nonce is enabled
-            FrameworkParameters parameters = new JEEFrameworkParameters(request, response);
-            WebContext webContext = JEEContextFactory.INSTANCE.newContext(parameters);
-            SessionStore sessionStore = JEESessionStoreFactory.INSTANCE.newSessionStore(parameters);
+            WebContext webContext = JEEContextFactory.INSTANCE.newContext(request, response);
+            SessionStore sessionStore = JEESessionStoreFactory.INSTANCE.newSessionStore();
             OidcClient oidcClient = buildOidcClient();
             sessionStore.set(webContext, oidcClient.getNonceSessionAttributeName(), "nonce");
         }

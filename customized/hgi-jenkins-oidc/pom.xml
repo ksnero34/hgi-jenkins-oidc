@@ -1,11 +1,10 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/maven-v4_0_0.xsd">
   <modelVersion>4.0.0</modelVersion>
-
   <parent>
     <groupId>org.jenkins-ci.plugins</groupId>
     <artifactId>plugin</artifactId>
-    <version>5.5</version>
+    <version>4.87</version>
     <relativePath />
   </parent>
 
@@ -16,10 +15,11 @@
 
   <name>HGI OpenId Connect Authentication Plugin</name>
   <url>https://github.com/jenkinsci/${project.artifactId}-plugin</url>
+
   <licenses>
     <license>
       <name>MIT License</name>
-      <url>https://opensource.org/license/mit/</url>
+      <url>https://opensource.org/licenses/MIT</url>
     </license>
   </licenses>
   <scm child.scm.connection.inherit.append.path="false" child.scm.developerConnection.inherit.append.path="false" child.scm.url.inherit.append.path="false">
@@ -33,23 +33,35 @@
     <revision>4</revision>
     <changelist>999999-SNAPSHOT</changelist>
     <gitHubRepo>jenkinsci/${project.artifactId}-plugin</gitHubRepo>
-    <jenkins.baseline>2.479</jenkins.baseline>
-    <jenkins.version>${jenkins.baseline}.1</jenkins.version>
+    <!-- update the jenkins-bom version when updating -->
+    <jenkins.version>2.426.3</jenkins.version>
     <spotless.check.skip>false</spotless.check.skip>
     <spotbugs.effort>Max</spotbugs.effort>
+    <configuration-as-code.version>1836.vccda_4a_122a_a_e</configuration-as-code.version>
     <hpi.compatibleSinceVersion>4.383</hpi.compatibleSinceVersion>
-    <pac4jVersion>6.1.0</pac4jVersion>
+    <!-- latest 5.x as 6 uses java 17 -->
+    <pac4jVersion>5.7.7</pac4jVersion>
   </properties>
 
   <dependencyManagement>
     <dependencies>
       <dependency>
         <groupId>io.jenkins.tools.bom</groupId>
-        <artifactId>bom-${jenkins.baseline}.x</artifactId>
-        <version>3850.vb_c5319efa_e29</version>
+        <artifactId>bom-2.426.x</artifactId>
+        <version>3208.vb_21177d4b_cd9</version>
         <type>pom</type>
         <scope>import</scope>
       </dependency>
+      <!--
+      Let's use a FIPS compliant version of nimbus-jose-jwt
+      TODO Remove when pac4j includes this version or a newer one
+      -->
+      <dependency>
+        <groupId>com.nimbusds</groupId>
+        <artifactId>nimbus-jose-jwt</artifactId>
+        <version>9.47</version>
+      </dependency>
+      <!-- end -->
       <dependency>
         <!-- do not exlude the annotations so we can benifit from spotbugs checks but set the to provided so we do not bundle them -->
         <groupId>com.github.stephenc.jcip</groupId>
@@ -70,14 +82,6 @@
       <artifactId>asm-api</artifactId>
     </dependency>
     <dependency>
-      <groupId>io.jenkins.plugins</groupId>
-      <artifactId>commons-lang3-api</artifactId>
-    </dependency>
-    <dependency>
-      <groupId>io.jenkins.plugins</groupId>
-      <artifactId>commons-text-api</artifactId>
-    </dependency>
-    <dependency>
       <groupId>org.jenkins-ci.plugins</groupId>
       <artifactId>jackson2-api</artifactId>
     </dependency>
@@ -88,38 +92,13 @@
 
     <dependency>
       <groupId>org.pac4j</groupId>
-      <artifactId>pac4j-jakartaee</artifactId>
+      <!-- replace with pac4j-jakartaee when we use a Jenkins version with jakartaee -->
+      <artifactId>pac4j-javaee</artifactId>
       <version>${pac4jVersion}</version>
       <exclusions>
         <exclusion>
-          <!-- consume from jackson2-api plugin -->
-          <groupId>com.fasterxml.jackson.core</groupId>
-          <artifactId>jackson-annotations</artifactId>
-        </exclusion>
-        <exclusion>
-          <!-- consume from jackson2-api plugin -->
-          <groupId>com.fasterxml.jackson.core</groupId>
-          <artifactId>jackson-databind</artifactId>
-        </exclusion>
-        <exclusion>
-          <!-- consume from jackson2-api plugin -->
-          <groupId>com.fasterxml.jackson.datatype</groupId>
-          <artifactId>jackson-datatype-jsr310</artifactId>
-        </exclusion>
-        <exclusion>
-          <!-- not needed at runtime -->
-          <groupId>com.google.code.findbugs</groupId>
-          <artifactId>findbugs-annotations</artifactId>
-        </exclusion>
-        <exclusion>
-          <!-- consume from commons-lang3-api plugin -->
-          <groupId>org.apache.commons</groupId>
-          <artifactId>commons-lang3</artifactId>
-        </exclusion>
-        <exclusion>
-          <!-- consume from commons-text-api plugin -->
-          <groupId>org.apache.commons</groupId>
-          <artifactId>commons-text</artifactId>
+          <groupId>com.google.guava</groupId>
+          <artifactId>guava</artifactId>
         </exclusion>
         <exclusion>
           <!-- consume from asm-api plugin -->
@@ -137,41 +116,16 @@
       <groupId>org.pac4j</groupId>
       <artifactId>pac4j-oidc</artifactId>
       <version>${pac4jVersion}</version>
+      <!-- java 11 compatability-->
       <exclusions>
-        <exclusion>
-          <!-- consume from jackson2-api plugin -->
-          <groupId>com.fasterxml.jackson.core</groupId>
-          <artifactId>jackson-core</artifactId>
-        </exclusion>
         <exclusion>
           <!-- consume from jackson2-api plugin -->
           <groupId>com.fasterxml.jackson.core</groupId>
           <artifactId>jackson-databind</artifactId>
         </exclusion>
         <exclusion>
-          <!-- not needed at runtime -->
-          <groupId>com.google.code.findbugs</groupId>
-          <artifactId>findbugs-annotations</artifactId>
-        </exclusion>
-        <exclusion>
-          <!-- consume from Jenkins core -->
           <groupId>com.google.guava</groupId>
           <artifactId>guava</artifactId>
-        </exclusion>
-        <exclusion>
-          <!-- consume from commons-text-api plugin -->
-          <groupId>commons-text</groupId>
-          <artifactId>commons-text</artifactId>
-        </exclusion>
-        <exclusion>
-          <!-- consume from Jenkins core -->
-          <groupId>org.slf4j</groupId>
-          <artifactId>slf4j-api</artifactId>
-        </exclusion>
-        <exclusion>
-          <!-- consume from Jenkins core -->
-          <groupId>org.springframework</groupId>
-          <artifactId>spring-core</artifactId>
         </exclusion>
       </exclusions>
     </dependency>
@@ -188,7 +142,6 @@
       <scope>test</scope>
       <exclusions>
         <exclusion>
-          <!-- consume from Jenkins core -->
           <groupId>com.google.guava</groupId>
           <artifactId>guava</artifactId>
         </exclusion>
@@ -304,7 +257,7 @@
           <dependency>
             <groupId>com.puppycrawl.tools</groupId>
             <artifactId>checkstyle</artifactId>
-            <version>10.21.1</version>
+            <version>10.20.2</version>
           </dependency>
         </dependencies>
         <executions>
@@ -320,7 +273,7 @@
       <plugin>
         <groupId>org.openrewrite.maven</groupId>
         <artifactId>rewrite-maven-plugin</artifactId>
-        <version>6.0.4</version>
+        <version>5.46.2</version>
         <configuration>
           <activeRecipes>
             <recipe>org.openrewrite.jenkins.github.AddTeamToCodeowners</recipe>
@@ -330,7 +283,7 @@
           <dependency>
             <groupId>org.openrewrite.recipe</groupId>
             <artifactId>rewrite-jenkins</artifactId>
-            <version>0.20.0</version>
+            <version>0.18.1</version>
           </dependency>
         </dependencies>
       </plugin>

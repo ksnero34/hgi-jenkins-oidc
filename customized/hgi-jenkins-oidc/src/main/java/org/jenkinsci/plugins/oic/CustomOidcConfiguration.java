@@ -30,7 +30,6 @@ class CustomOidcConfiguration extends OidcConfiguration {
 
     @Override
     public void configureHttpRequest(HTTPRequest request) {
-        super.configureHttpRequest(request);
         Proxy proxy = null;
         Jenkins jenkins = Jenkins.getInstanceOrNull();
         if (jenkins != null) { // unit tests
@@ -48,5 +47,6 @@ class CustomOidcConfiguration extends OidcConfiguration {
                 throw new IllegalStateException("could not configure the SSLFactory, this should not be possible", e);
             }
         }
+        super.configureHttpRequest(request);
     }
 }
