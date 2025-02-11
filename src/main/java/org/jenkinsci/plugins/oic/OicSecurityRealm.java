@@ -71,7 +71,6 @@ import java.time.Clock;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.Collections;
-import java.util.Enumeration;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -1259,74 +1258,43 @@ public class OicSecurityRealm extends SecurityRealm implements Serializable {
      * @throws ParseException if the JWT (or other response) could not be parsed.
      */
     public void doFinishLogin(StaplerRequest request, StaplerResponse response) throws IOException, ParseException {
-        LOGGER.log(Level.INFO, "Starting OIDC finishLogin process...");
         OidcClient client = buildOidcClient();
-        LOGGER.log(Level.INFO, "OIDC Client configuration: clientId={0}, redirectUrl={1}, tokenUrl={2}",
-            new Object[]{
-                client.getConfiguration().getClientId(),
-                client.getCallbackUrl(),
-                client.getConfiguration().findProviderMetadata().getTokenEndpointURI()
-            });
 
         WebContext webContext = JEEContextFactory.INSTANCE.newContext(request, response);
         SessionStore sessionStore = JEESessionStoreFactory.INSTANCE.newSessionStore();
 
         try {
+            // NB: TODO this also handles back channel logout if "logoutendpoint" parameter is set
+            // see  org.pac4j.oidc.credentials.extractor.OidcExtractor.extract(WebContext, SessionStore)
+            // but we probably need to hookup a special LogoutHandler in the clients configuration to do all the special
+            // Jenkins stuff correctly
+            // also should have its own URL to make the code easier to follow :)
+
             if (!sessionStore.renewSession(webContext)) {
-                LOGGER.log(Level.SEVERE, "Failed to create new session");
                 throw new TechnicalException("Could not create a new session");
             }
-            LOGGER.log(Level.INFO, "Session renewed successfully");
 
-            // 요청 파라미터 로깅
-            Map<String, String[]> params = request.getParameterMap();
-            LOGGER.log(Level.INFO, "Request parameters: {0}", params);
-
-            // 헤더 정보 로깅
-            Enumeration<String> headerNames = request.getHeaderNames();
-            StringBuilder headers = new StringBuilder();
-            while (headerNames.hasMoreElements()) {
-                String headerName = headerNames.nextElement();
-                headers.append(headerName).append(": ").append(request.getHeader(headerName)).append(", ");
-            }
-            LOGGER.log(Level.INFO, "Request headers: {0}", headers.toString());
-
-            Credentials credentials = null;
-            try {
-                credentials = client.getCredentials(webContext, sessionStore)
-                        .orElseThrow(() -> new Failure("Could not extract credentials from request"));
-                LOGGER.log(Level.INFO, "Credentials extracted successfully");
-            } catch (Exception e) {
-                LOGGER.log(Level.SEVERE, "Failed to extract credentials: {0}", e.getMessage());
-                throw e;
-            }
+            Credentials credentials = client.getCredentials(webContext, sessionStore)
+                    .orElseThrow(() -> new Failure("Could not extract credentials from request"));
 
             ProfileCreator profileCreator = client.getProfileCreator();
-            LOGGER.log(Level.INFO, "Attempting to create user profile...");
 
             // creating the profile performs validation of the token
             OidcProfile profile = (OidcProfile) profileCreator
                     .create(credentials, webContext, sessionStore)
                     .orElseThrow(() -> new Failure("Could not build user profile"));
-            LOGGER.log(Level.INFO, "User profile created successfully");
 
             AccessToken accessToken = profile.getAccessToken();
             JWT idToken = profile.getIdToken();
             RefreshToken refreshToken = profile.getRefreshToken();
 
-            LOGGER.log(Level.INFO, "Tokens received - AccessToken: {0}, RefreshToken: {1}",
-                new Object[]{accessToken != null ? "present" : "null", refreshToken != null ? "present" : "null"});
-
             String username = determineStringField(userNameFieldExpr, idToken, profile.getAttributes());
-            LOGGER.log(Level.INFO, "Determined username: {0}", username);
-
             if (failedCheckOfTokenField(idToken)) {
-                LOGGER.log(Level.SEVERE, "Token field check failed");
                 throw new FailedCheckOfTokenException(client.getConfiguration().findLogoutUrl());
             }
 
             OicCredentials oicCredentials = new OicCredentials(
-                    accessToken == null ? null : accessToken.getValue(),
+                    accessToken == null ? null : accessToken.getValue(), // XXX (how) can the access token be null?
                     idToken.getParsedString(),
                     refreshToken != null ? refreshToken.getValue() : null,
                     accessToken == null ? 0 : accessToken.getLifetime(),
@@ -1334,21 +1302,16 @@ public class OicSecurityRealm extends SecurityRealm implements Serializable {
                     getAllowedTokenExpirationClockSkewSeconds());
 
             loginAndSetUserData(username, idToken, profile.getAttributes(), oicCredentials);
-            LOGGER.log(Level.INFO, "User data set successfully for: {0}", username);
 
             String redirectUrl = (String) sessionStore
                     .get(webContext, SESSION_POST_LOGIN_REDIRECT_URL_KEY)
                     .orElse(Jenkins.get().getRootUrl());
-            LOGGER.log(Level.INFO, "Redirecting to: {0}", redirectUrl);
             response.sendRedirect(HttpURLConnection.HTTP_MOVED_TEMP, redirectUrl);
 
         } catch (HttpAction e) {
-            LOGGER.log(Level.WARNING, "HTTP Action occurred during login process", e);
+            // this may be an OK flow for logout login is handled upstream.
             JEEHttpActionAdapter.INSTANCE.adapt(e, webContext);
             return;
-        } catch (Exception e) {
-            LOGGER.log(Level.SEVERE, "Unexpected error during login process: {0}", e.getMessage());
-            throw e;
         }
     }
 
