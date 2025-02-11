@@ -231,6 +231,11 @@
             </lifecycleMappingMetadata>
           </configuration>
         </plugin>
+        <plugin>
+          <groupId>org.jenkins-ci.tools</groupId>
+          <artifactId>maven-hpi-plugin</artifactId>
+          <version>3.56</version>
+        </plugin>
       </plugins>
     </pluginManagement>
     <plugins>
