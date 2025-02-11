@@ -23,5 +23,5 @@
  * -->
 <?jelly escape-by-default='true'?>
 <div>
-  Allows you to log in using an openid connect server.
+  한화손해보험 OIDC 인증서버를 통해 로그인하기. (Allows you to log in using an openid connect server.)
 </div>

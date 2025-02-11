@@ -514,6 +514,7 @@ public class OicSecurityRealm extends SecurityRealm implements Serializable {
         // TODO what do we prefer?
         // conf.setPreferredJwsAlgorithm(JWSAlgorithm.HS256);
         // set many more as needed...
+        conf.setPreferredJwsAlgorithm(JWSAlgorithm.RS256);
 
         OIDCProviderMetadata oidcProviderMetadata = serverConfiguration.toProviderMetadata();
         filterNonFIPS140CompliantAlgorithms(oidcProviderMetadata);
